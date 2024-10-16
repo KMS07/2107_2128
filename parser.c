@@ -7,6 +7,8 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/select.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <fcntl.h>
@@ -39,12 +41,61 @@ void removeExtraAtEnd(char *str)
     }
 }
 
+
+void receiveFromSocket(int socket_fd)
+{
+    struct API_Response response;
+    int bytesReceived;
+    fd_set read_fds;
+    struct timeval timeout;
+
+    // Set the timeout to 5 seconds
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
+    // Clear the set and add socket_fd to the set
+    FD_ZERO(&read_fds);
+    FD_SET(socket_fd, &read_fds);
+
+    // Use select to wait for data to be available
+    int select_result = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);
+    if (select_result < 0)
+    {
+        perror("Error with select()");
+        return;
+    }
+    else if (select_result == 0)
+    {
+        printf("Timeout occurred! No data received in 5 seconds.\n");
+        return;
+    }
+
+    // Data is available to be read
+    bytesReceived = recv(socket_fd, &response, sizeof(response), 0);
+    if (bytesReceived < 0)
+    {
+        perror("Error receiving data");
+    }
+    else if (bytesReceived == 0)
+    {
+        printf("Connection closed by the server\n");
+    }
+    else
+    {
+        // Successfully received data
+        printf("Received response from server\n");
+        printf("Status: %d, Message: %s\n", response.status, response.message);
+    }
+}
+
+
 void read_data(char *input_file)
 {
     FILE *input_data;
     char line[400];
+    int socket_fd;
 
-    if(openClientSocket() == -1){
+    if((socket_fd = openClientSocket()) == -1){
         printf("Server didnt open the fifo");
         return;
     } //openin the fifo here once to write till the end of program.
@@ -65,9 +116,9 @@ void read_data(char *input_file)
     int numOfParams;
 
     int courseCode, marks;
-
-    if (strncmp(line, "# initial database", strlen("# initial database")) == 0)
-    {
+ 
+    // if (strncmp(line, "# initial database", strlen("# initial database")) == 0)
+    // {
         while (!feof(input_data))
         {
             // if (strncmp(line, "# initial database", strlen("# initial database")) == 0)
@@ -157,6 +208,7 @@ void read_data(char *input_file)
                     {
                         // Call AddStudent API
                         addStudent(rNo, name, cgpa, 0);
+                        receiveFromSocket(socket_fd);
                     }
                     else
                     {
@@ -185,6 +237,7 @@ void read_data(char *input_file)
                     {
                         // Call AddCourse API
                         addCourse(rNo, courseCode, marks);
+                        receiveFromSocket(socket_fd);
                     }
                     else
                     {
@@ -213,6 +266,8 @@ void read_data(char *input_file)
                     {
                         // Call ModifyStudent API
                         modifyStudent(rNo, cgpa);
+                        receiveFromSocket(socket_fd);
+
                     }
                     else
                     {
@@ -242,6 +297,7 @@ void read_data(char *input_file)
                     {
                         // Call ModifyCourse API
                         modifyCourse(rNo, courseCode, marks);
+                        receiveFromSocket(socket_fd);
                     }
                     else
                     {
@@ -269,6 +325,7 @@ void read_data(char *input_file)
                     {
                         // Call DeleteStudent API
                         deleteStudent(rNo);
+                        receiveFromSocket(socket_fd);
                     }
                     else
                     {
@@ -296,6 +353,7 @@ void read_data(char *input_file)
                     {
                         // Call DeleteStudent API
                         deleteCourse(rNo, courseCode);
+                        receiveFromSocket(socket_fd);
                     }
                     else
                     {
@@ -309,11 +367,11 @@ void read_data(char *input_file)
             }
         }
         printf("File reading done\n");
-    }
-    else
-    {
-        fprintf(stderr, "File incorrect syntax\n");
-    }
-    close(writefd);// closing client side write file descriptor
+    // }
+    // else
+    // {
+    //     fprintf(stderr, "File incorrect syntax\n");
+    // }
+    // close(writefd);// closing client side write file descriptor
     fclose(input_data);
 }

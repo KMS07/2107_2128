@@ -63,6 +63,10 @@ struct API_Request {
     enum API_Type api_type; 
     union API_Data data;     
 };
+struct API_Response{
+    int status;
+    char message[256];
+};
 
 extern int writefd,readfd;
 
