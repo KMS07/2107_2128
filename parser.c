@@ -44,7 +44,7 @@ void read_data(char *input_file)
     FILE *input_data;
     char line[400];
 
-    if(openClientFIFO() == -1){
+    if(openClientSocket() == -1){
         printf("Server didnt open the fifo");
         return;
     } //openin the fifo here once to write till the end of program.
@@ -70,70 +70,71 @@ void read_data(char *input_file)
     {
         while (!feof(input_data))
         {
-            if (strncmp(line, "# initial database", strlen("# initial database")) == 0)
-            {
-                fgets(line, sizeof(line), input_data);
-                lineNo++;
+            // if (strncmp(line, "# initial database", strlen("# initial database")) == 0)
+            // {
+            //     fgets(line, sizeof(line), input_data);
+            //     lineNo++;
 
-                removeExtraAtEnd(line);
-                while (strchr(line, '#') == NULL && !feof(input_data))
-                {
-                    removeExtraAtEnd(line);
-                    if (emptyLineCheck(line))
-                    {
-                        if (!fgets(line, sizeof(line), input_data))
-                            break;
-                        lineNo++;
-                        continue;
-                    }
-                    else if (sscanf(line, "%d,%199[^,],%f,%d%n", &rNo, name, &cgpa, &noOfSub, &numOfParams) == 4 && line[numOfParams] == '\0')
-                    {
-                        addStudent(rNo, name, cgpa, 0);
-                        if (!fgets(line, sizeof(line), input_data))
-                            break;
-                        lineNo++;
+            //     removeExtraAtEnd(line);
+            //     while (strchr(line, '#') == NULL && !feof(input_data))
+            //     {
+            //         removeExtraAtEnd(line);
+            //         if (emptyLineCheck(line))
+            //         {
+            //             if (!fgets(line, sizeof(line), input_data))
+            //                 break;
+            //             lineNo++;
+            //             continue;
+            //         }
+            //         else if (sscanf(line, "%d,%199[^,],%f,%d%n", &rNo, name, &cgpa, &noOfSub, &numOfParams) == 4 && line[numOfParams] == '\0')
+            //         {
+            //             addStudent(rNo, name, cgpa, 0);
+            //             if (!fgets(line, sizeof(line), input_data))
+            //                 break;
+            //             lineNo++;
 
-                        int countCourses = 0;
-                        int whiteSpaces = 0;
-                        while ((sscanf(line, "%d,%d%n", &courseCode, &marks, &numOfParams) == 2 && countCourses <= noOfSub) || emptyLineCheck(line))
-                        {
-                            if (emptyLineCheck(line))
-                            {
-                                if (!fgets(line, sizeof(line), input_data))
-                                    break;
-                                lineNo++;
-                                whiteSpaces++;
-                                continue;
-                            }
-                            removeExtraAtEnd(line);
-                            if (line[numOfParams] != '\0')
-                            {
-                                fprintf(stderr, "Wrong number of parameters of add course at line %d\n", lineNo);
-                            }
-                            addCourse(rNo, courseCode, marks);
-                            countCourses++;
+            //             int countCourses = 0;
+            //             int whiteSpaces = 0;
+            //             while ((sscanf(line, "%d,%d%n", &courseCode, &marks, &numOfParams) == 2 && countCourses <= noOfSub) || emptyLineCheck(line))
+            //             {
+            //                 if (emptyLineCheck(line))
+            //                 {
+            //                     if (!fgets(line, sizeof(line), input_data))
+            //                         break;
+            //                     lineNo++;
+            //                     whiteSpaces++;
+            //                     continue;
+            //                 }
+            //                 removeExtraAtEnd(line);
+            //                 if (line[numOfParams] != '\0')
+            //                 {
+            //                     fprintf(stderr, "Wrong number of parameters of add course at line %d\n", lineNo);
+            //                 }
+            //                 addCourse(rNo, courseCode, marks);
+            //                 countCourses++;
 
-                            if (!fgets(line, sizeof(line), input_data))
-                                break;
+            //                 if (!fgets(line, sizeof(line), input_data))
+            //                     break;
 
-                            lineNo++;
-                        }
+            //                 lineNo++;
+            //             }
 
-                        if (countCourses < noOfSub)
-                        {
-                            fprintf(stderr, "Number of courses are less than provided for the student at line %d\n", lineNo - (countCourses + whiteSpaces + 1));
-                        }
-                    }
-                    else
-                    {
+            //             if (countCourses < noOfSub)
+            //             {
+            //                 fprintf(stderr, "Number of courses are less than provided for the student at line %d\n", lineNo - (countCourses + whiteSpaces + 1));
+            //             }
+            //         }
+            //         else
+            //         {
 
-                        fprintf(stderr, "Wrong format of values in initial database for add student at line %d\n", lineNo);
-                        fgets(line, sizeof(line), input_data);
-                        lineNo++;
-                    }
-                }
-            }
-            else if (strncmp(line, "# add student", strlen("# add student")) == 0)
+            //             fprintf(stderr, "Wrong format of values in initial database for add student at line %d\n", lineNo);
+            //             fgets(line, sizeof(line), input_data);
+            //             lineNo++;
+            //         }
+            //     }
+            // }
+            // else 
+            if (strncmp(line, "# add student", strlen("# add student")) == 0)
             {
 
                 while (fgets(line, sizeof(line), input_data) != NULL)

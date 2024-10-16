@@ -7,114 +7,133 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include "fifo.h"
 #include "client.h"
 
 #define SERVER_CONNECTION_TIMEOUT 5
 #define MAX_RETRIES 5
 #define RETRY_DELAY 100000
-#define PIPE_RETRY 3
+#define SOCKET_RETRY 3
 
 struct API_Request apiRequest;
 
-int writefd;
+int socket_fd;
 
 // Signal handler for SIGPIPE
 void handle_sigpipe(int sig) {
-    int pipeRetry = 1;
+    int socketRetry = 1;
     fprintf(stderr, "Received SIGPIPE signal\n");
 
-    while(pipeRetry <= PIPE_RETRY){
-       ssize_t bytes_written = write(writefd, &apiRequest, sizeof(apiRequest));
-       fprintf(stderr,"Retrying to write(%d/%d)\n", pipeRetry, PIPE_RETRY);
-       pipeRetry++;
+    while(socketRetry <= SOCKET_RETRY){
+       ssize_t bytes_written = write(socket_fd, &apiRequest, sizeof(apiRequest));
+       fprintf(stderr,"Retrying to write(%d/%d)\n", socketRetry, SOCKET_RETRY);
+       socketRetry++;
        if (bytes_written == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // FIFO is full
-                pipeRetry++;
-                fprintf(stderr,"FIFO is full, retrying(%d/%d)\n", pipeRetry, MAX_RETRIES);
+                socketRetry++;
+                fprintf(stderr,"Socket send buffer is full, retrying(%d/%d)\n", socketRetry, MAX_RETRIES);
                 usleep(RETRY_DELAY); 
             } else if (errno == EPIPE) {
-                // No readers on the FIFO
-                fprintf(stderr, "Error: Server is not running or has closed the pipe\n");
-                pipeRetry++;
+                fprintf(stderr, "Error: Server has closed the connection\n");
+                socketRetry++;
                 usleep(RETRY_DELAY); // Sleep before retrying
             } else {
                 // Some other error occurred
                 perror("write");
-                close(writefd);
+                close(socket_fd);
                 exit(EXIT_FAILURE);
             }
         } else {
-            printf("Message written to FIFO\n");
-            pipeRetry = 1; // Reset retries 
+            printf("Message written to socket\n");
+            socketRetry = 1; // Reset retries 
             break; // exiting loop after write is successful
         }
     }
-    if (pipeRetry >= PIPE_RETRY){
+    if (socketRetry >= SOCKET_RETRY){
         printf("Couldn't write");
         exit(1);
     }
 }
 
 void handle_timeout(int sig) {
-    fprintf(stderr, "Timeout: No reader connected within %d seconds. Exiting...\n", SERVER_CONNECTION_TIMEOUT);
+    fprintf(stderr, "Timeout: No server connected within %d seconds. Exiting...\n", SERVER_CONNECTION_TIMEOUT);
     exit(EXIT_FAILURE);
 }
 
-int openClientFIFO() {
+int openClientSocket(char *SERVER_IP,int SERVER_PORT) {
 
-    // Setting up signal handler for SIGPIPE
+    //installing signal handler for SIGPIPE
     struct sigaction sa;
     sa.sa_handler = handle_sigpipe;
     sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
     sigaction(SIGPIPE, &sa, NULL);
 
-
-    if(signal(SIGALRM, handle_timeout) == SIG_ERR){
+    //signal handler for connection timeout
+    if (signal(SIGALRM, handle_timeout) == SIG_ERR) {
         perror("signal FAILED");
         exit(EXIT_FAILURE);
     }
 
+    if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("Socket creation failed");
+        return -1;
+    }
 
+    struct sockaddr_in server_address;
+    memset(&server_address, 0, sizeof(server_address));
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(SERVER_PORT);
+
+    // Convert the IP address from text to binary form
+    if (inet_pton(AF_INET, SERVER_IP, &server_address.sin_addr) <= 0) {
+        fprintf(stderr, "Invalid server IP address\n");
+        close(socket_fd);
+        return -1;
+    }
+
+    //alarm for connection timeout
     alarm(SERVER_CONNECTION_TIMEOUT);
 
-    if ((writefd = open(FIFO, O_WRONLY)) == -1) {
-        fprintf(stderr, "Error opening FIFO %s(%s)\n", FIFO, strerror(errno));
+    //connect to the server
+    if (connect(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address)) == -1) {
+        perror("Connection to server failed");
+        close(socket_fd);
         return -1;
     }
 
     alarm(0);
 
-    return writefd;
+    return socket_fd;
 }
 
 
-//send the data to fifo
+//send the data to socket
 void sendRequest(struct API_Request request){
     int retries = 0;
     while (retries < MAX_RETRIES) {
-        ssize_t bytes_written = write(writefd, &request, sizeof(request));
+        ssize_t bytes_written = write(socket_fd, &request, sizeof(request));
         if (bytes_written == -1) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // FIFO is full
+                // socket is full
                 retries++;
-                fprintf(stderr,"FIFO is full, retrying(%d/%d)\n", retries, MAX_RETRIES);
+                fprintf(stderr,"Socket send buffer is full, retrying(%d/%d)\n", retries, MAX_RETRIES);
                 usleep(RETRY_DELAY); 
             } else if (errno == EPIPE) {
-                // No readers on the FIFO
-                fprintf(stderr, "Error: Server is not running or has closed the pipe");
+                fprintf(stderr, "Error: Server has closed the connection");
                 retries++;
                 usleep(RETRY_DELAY); // Sleep before retrying
             } else {
                 // Some other error occurred
                 perror("write");
-                close(writefd);
+                close(socket_fd);
                 exit(EXIT_FAILURE);
             }
         } else {
-            printf("Message written to FIFO\n");
+            printf("Message written to socket\n");
             retries = 0; // Reset retries 
             break; // exiting loop after write is successful
         }
@@ -122,7 +141,7 @@ void sendRequest(struct API_Request request){
 
     if (retries >= MAX_RETRIES) {
         printf("Max retries reached, exiting program.\n");
-        close(writefd);
+        close(socket_fd);
     }
 
 }
@@ -134,7 +153,7 @@ void addStudent(int rollNo, char *name, float CGPA, int noOfSubjects)
     apiRequest.data.api_add_student.cgpa = CGPA;
     apiRequest.data.api_add_student.noOfSubjects = noOfSubjects;
 
-    //write into fifo
+    //write into socket
     sendRequest(apiRequest);
 }
 
@@ -143,7 +162,7 @@ void modifyStudent(int rollNo, float newCGPA){
     apiRequest.data.api_modify_student.rNo = rollNo;
     apiRequest.data.api_modify_student.cgpa = newCGPA;
 
-    //write into fifo
+    //write into socket
     sendRequest(apiRequest);
 }
 
@@ -152,7 +171,7 @@ void deleteStudent(int rollNo)
     apiRequest.api_type = DELETE_STUDENT;
     apiRequest.data.api_delete_student.rNo = rollNo;
 
-    //write into fifo
+    //write into socket 
     sendRequest(apiRequest);
 }
 
@@ -163,7 +182,7 @@ void modifyCourse(int rollNo, int courseCode, int marks)
     apiRequest.data.api_modify_course.courseCode = courseCode;
     apiRequest.data.api_modify_course.marks = marks;
 
-    //write into fifo
+    //write into socket
     sendRequest(apiRequest);
 }
 void addCourse(int rollNo, int courseCode, int marks){
@@ -172,7 +191,7 @@ void addCourse(int rollNo, int courseCode, int marks){
     apiRequest.data.api_add_course.courseCode = courseCode;
     apiRequest.data.api_add_course.marks = marks;
 
-    //write into fifo
+    //write into socket
     sendRequest(apiRequest);
 }
 
@@ -182,6 +201,6 @@ void deleteCourse(int rollNo, int courseCode)
     apiRequest.data.api_delete_course.rNo = rollNo;
     apiRequest.data.api_delete_course.courseCode = courseCode;
 
-    //write into fifo
+    //write into socket
     sendRequest(apiRequest);
 }
