@@ -1,6 +1,6 @@
 #include "parser.h"
 #include "client.h"
-#include "fifo.h"
+#include "socket.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,60 +42,14 @@ void removeExtraAtEnd(char *str)
 }
 
 
-void receiveFromSocket(int socket_fd)
-{
-    struct API_Response response;
-    int bytesReceived;
-    fd_set read_fds;
-    struct timeval timeout;
 
-    // Set the timeout to 5 seconds
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
-
-    // Clear the set and add socket_fd to the set
-    FD_ZERO(&read_fds);
-    FD_SET(socket_fd, &read_fds);
-
-    // Use select to wait for data to be available
-    int select_result = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);
-    if (select_result < 0)
-    {
-        perror("Error with select()");
-        return;
-    }
-    else if (select_result == 0)
-    {
-        printf("Timeout occurred! No data received in 5 seconds.\n");
-        return;
-    }
-
-    // Data is available to be read
-    bytesReceived = recv(socket_fd, &response, sizeof(response), 0);
-    if (bytesReceived < 0)
-    {
-        perror("Error receiving data");
-    }
-    else if (bytesReceived == 0)
-    {
-        printf("Connection closed by the server\n");
-    }
-    else
-    {
-        // Successfully received data
-        printf("Received response from server\n");
-        printf("Status: %d, Message: %s\n", response.status, response.message);
-    }
-}
-
-
-void read_data(char *input_file)
+void read_data(char *input_file, char *IPADDR, int PORT)
 {
     FILE *input_data;
     char line[400];
     int socket_fd;
 
-    if((socket_fd = openClientSocket()) == -1){
+    if((socket_fd = openClientSocket(IPADDR,PORT)) == -1){
         printf("Server didnt open the fifo");
         return;
     } //openin the fifo here once to write till the end of program.
@@ -117,74 +71,9 @@ void read_data(char *input_file)
 
     int courseCode, marks;
  
-    // if (strncmp(line, "# initial database", strlen("# initial database")) == 0)
-    // {
         while (!feof(input_data))
         {
-            // if (strncmp(line, "# initial database", strlen("# initial database")) == 0)
-            // {
-            //     fgets(line, sizeof(line), input_data);
-            //     lineNo++;
-
-            //     removeExtraAtEnd(line);
-            //     while (strchr(line, '#') == NULL && !feof(input_data))
-            //     {
-            //         removeExtraAtEnd(line);
-            //         if (emptyLineCheck(line))
-            //         {
-            //             if (!fgets(line, sizeof(line), input_data))
-            //                 break;
-            //             lineNo++;
-            //             continue;
-            //         }
-            //         else if (sscanf(line, "%d,%199[^,],%f,%d%n", &rNo, name, &cgpa, &noOfSub, &numOfParams) == 4 && line[numOfParams] == '\0')
-            //         {
-            //             addStudent(rNo, name, cgpa, 0);
-            //             if (!fgets(line, sizeof(line), input_data))
-            //                 break;
-            //             lineNo++;
-
-            //             int countCourses = 0;
-            //             int whiteSpaces = 0;
-            //             while ((sscanf(line, "%d,%d%n", &courseCode, &marks, &numOfParams) == 2 && countCourses <= noOfSub) || emptyLineCheck(line))
-            //             {
-            //                 if (emptyLineCheck(line))
-            //                 {
-            //                     if (!fgets(line, sizeof(line), input_data))
-            //                         break;
-            //                     lineNo++;
-            //                     whiteSpaces++;
-            //                     continue;
-            //                 }
-            //                 removeExtraAtEnd(line);
-            //                 if (line[numOfParams] != '\0')
-            //                 {
-            //                     fprintf(stderr, "Wrong number of parameters of add course at line %d\n", lineNo);
-            //                 }
-            //                 addCourse(rNo, courseCode, marks);
-            //                 countCourses++;
-
-            //                 if (!fgets(line, sizeof(line), input_data))
-            //                     break;
-
-            //                 lineNo++;
-            //             }
-
-            //             if (countCourses < noOfSub)
-            //             {
-            //                 fprintf(stderr, "Number of courses are less than provided for the student at line %d\n", lineNo - (countCourses + whiteSpaces + 1));
-            //             }
-            //         }
-            //         else
-            //         {
-
-            //             fprintf(stderr, "Wrong format of values in initial database for add student at line %d\n", lineNo);
-            //             fgets(line, sizeof(line), input_data);
-            //             lineNo++;
-            //         }
-            //     }
-            // }
-            // else 
+            sleep(2);
             if (strncmp(line, "# add student", strlen("# add student")) == 0)
             {
 
@@ -208,7 +97,6 @@ void read_data(char *input_file)
                     {
                         // Call AddStudent API
                         addStudent(rNo, name, cgpa, 0);
-                        receiveFromSocket(socket_fd);
                     }
                     else
                     {
@@ -237,7 +125,6 @@ void read_data(char *input_file)
                     {
                         // Call AddCourse API
                         addCourse(rNo, courseCode, marks);
-                        receiveFromSocket(socket_fd);
                     }
                     else
                     {
@@ -266,7 +153,6 @@ void read_data(char *input_file)
                     {
                         // Call ModifyStudent API
                         modifyStudent(rNo, cgpa);
-                        receiveFromSocket(socket_fd);
 
                     }
                     else
@@ -297,7 +183,6 @@ void read_data(char *input_file)
                     {
                         // Call ModifyCourse API
                         modifyCourse(rNo, courseCode, marks);
-                        receiveFromSocket(socket_fd);
                     }
                     else
                     {
@@ -325,7 +210,6 @@ void read_data(char *input_file)
                     {
                         // Call DeleteStudent API
                         deleteStudent(rNo);
-                        receiveFromSocket(socket_fd);
                     }
                     else
                     {
@@ -353,7 +237,6 @@ void read_data(char *input_file)
                     {
                         // Call DeleteStudent API
                         deleteCourse(rNo, courseCode);
-                        receiveFromSocket(socket_fd);
                     }
                     else
                     {

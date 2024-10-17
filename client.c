@@ -9,8 +9,9 @@
 #include <errno.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 #include <netinet/in.h>
-#include "fifo.h"
+#include "socket.h"
 #include "client.h"
 
 #define SERVER_CONNECTION_TIMEOUT 5
@@ -111,6 +112,53 @@ int openClientSocket(char *SERVER_IP,int SERVER_PORT) {
 }
 
 
+void receiveFromSocket()
+{
+    struct API_Response response;
+    int bytesReceived;
+    fd_set read_fds;
+    struct timeval timeout;
+
+    // Set the timeout to 5 seconds
+    timeout.tv_sec = 5;
+    timeout.tv_usec = 0;
+
+    // Clear the set and add socket_fd to the set
+    FD_ZERO(&read_fds);
+    FD_SET(socket_fd, &read_fds);
+
+    // Use select to wait for data to be available
+    int select_result = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);
+    if (select_result < 0)
+    {
+        perror("Error with select()");
+        return;
+    }
+    else if (select_result == 0)
+    {
+        printf("Timeout occurred! No data received in 5 seconds.\n");
+        return;
+    }
+
+    // Data is available to be read
+    bytesReceived = read(socket_fd, &response, sizeof(response));
+    if (bytesReceived < 0)
+    {
+        perror("Error receiving data");
+    }
+    else if (bytesReceived == 0)
+    {
+        printf("Connection closed by the server\n");
+    }
+    else
+    {
+        // Successfully received data
+        printf("Received response from server\n");
+        printf("Status: %d, Message: %s\n", response.status, response.message);
+    }
+}
+
+
 //send the data to socket
 void sendRequest(struct API_Request request){
     int retries = 0;
@@ -155,6 +203,7 @@ void addStudent(int rollNo, char *name, float CGPA, int noOfSubjects)
 
     //write into socket
     sendRequest(apiRequest);
+    receiveFromSocket();
 }
 
 void modifyStudent(int rollNo, float newCGPA){
@@ -164,6 +213,7 @@ void modifyStudent(int rollNo, float newCGPA){
 
     //write into socket
     sendRequest(apiRequest);
+    receiveFromSocket();
 }
 
 void deleteStudent(int rollNo)
@@ -173,6 +223,7 @@ void deleteStudent(int rollNo)
 
     //write into socket 
     sendRequest(apiRequest);
+    receiveFromSocket();
 }
 
 void modifyCourse(int rollNo, int courseCode, int marks)
@@ -184,6 +235,7 @@ void modifyCourse(int rollNo, int courseCode, int marks)
 
     //write into socket
     sendRequest(apiRequest);
+    receiveFromSocket();
 }
 void addCourse(int rollNo, int courseCode, int marks){
     apiRequest.api_type = ADD_COURSE;
@@ -193,6 +245,7 @@ void addCourse(int rollNo, int courseCode, int marks){
 
     //write into socket
     sendRequest(apiRequest);
+    receiveFromSocket();
 }
 
 void deleteCourse(int rollNo, int courseCode)
@@ -203,4 +256,5 @@ void deleteCourse(int rollNo, int courseCode)
 
     //write into socket
     sendRequest(apiRequest);
+    receiveFromSocket();
 }

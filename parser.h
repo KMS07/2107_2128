@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 // functions that parser executes
-void read_data(char *input_file);
+void read_data(char *input_file, char *IPADDR, int PORT);
 
 // extern variables
 

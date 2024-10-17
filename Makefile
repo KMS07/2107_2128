@@ -25,9 +25,9 @@ $(CLIENT_TARGET): $(CLIENT_OBJS)
 # Define dependencies for the source files
 main.o: parser.h parser.c 
 parser.o: parser.h client.h client.c
-client.o: client.h fifo.h client.c
+client.o: client.h socket.h client.c
 
-server.o: student.h writer.h fifo.h student.c writer.c
+server.o: student.h writer.h socket.h student.c writer.c
 student.o: student.h
 writer.o: writer.h
 

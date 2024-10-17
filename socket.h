@@ -1,6 +1,6 @@
-#ifndef FIFO_H
-#define FIFO_H
-#include "student.h"
+#ifndef SOCKET_H
+#define SOCKET_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,9 +11,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#define FIFO "/tmp/fifo.1"
-#define FILE_MODE (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
-
+#define nameSize 400
 enum API_Type {
     ADD_STUDENT,
     MODIFY_STUDENT,
@@ -69,5 +67,9 @@ struct API_Response{
 };
 
 extern int writefd,readfd;
+
+#define SERV_PORT 9998
+#define MAXLINE 1000
+#define LISTENQ 4
 
 #endif

@@ -8,13 +8,14 @@ struct student *head = NULL;
 bool searchStudent(int rollNo)
 {
     struct student *nextStudentNode = (struct student *)malloc(sizeof(struct student));
-    nextStudentNode = head->nextStudent;
-    if (nextStudentNode == NULL)
+    
+    if (head == NULL)
     {
         return false;
     }
     else
     {
+        nextStudentNode = head->nextStudent;
         while (nextStudentNode != NULL)
         {
             if (nextStudentNode->rollNo == rollNo)
@@ -35,7 +36,7 @@ int searchStudentCourse(int rollNo, int courseCode)
     struct student *nextStudentNode = (struct student *)malloc(sizeof(struct student));
     struct course *nextCourseNode = (struct course *)malloc(sizeof(struct course));
     nextStudentNode = head;
-    if (nextStudentNode->nextStudent == NULL)
+    if (nextStudentNode == NULL)
     {
         return -1;
     }
@@ -76,14 +77,16 @@ int searchStudentCourse(int rollNo, int courseCode)
     }
 }
 
-void addStudent(int rollNo, char *name, float CGPA, int noOfSubjects)
+void addStudent(int rollNo, char *name, float CGPA, int noOfSubjects, struct API_Response *response)
 {
+    char buffer[256];
     struct student *tempNode = (struct student *)malloc(sizeof(struct student));
     struct student *nextNode = (struct student *)malloc(sizeof(struct student));
     if (tempNode == NULL || nextNode == NULL)
     {
-        perror("Error in memory allocation in Data Structure\n");
-        // exit(1);
+        response->status = 0;
+        strcpy(response->message, "Error in memory allocation in Data Structure\n");
+        return ;
     }
     tempNode->rollNo = rollNo;
     strncpy(tempNode->name, name, nameSize - 1);
@@ -99,12 +102,18 @@ void addStudent(int rollNo, char *name, float CGPA, int noOfSubjects)
         head = (struct student *)malloc(sizeof(struct student));
         head->nextStudent = tempNode;
         tempNode->prevStudent = head;
+
+        sprintf(buffer, "Student added succesfully with roll no. %d!", rollNo);
+        response->status = 1;
+        strcpy(response->message, buffer);
     }
     else
     {
         if (searchStudent(rollNo))
         {
-            fprintf(stderr, "Student already exists with roll no. %d!(add student)\n", rollNo);
+            sprintf(buffer, "Student already exists with roll no. %d!(add student)\n", rollNo);
+            response->status = 0;
+            strcpy(response->message, buffer);
         }
         else
         {
@@ -115,13 +124,18 @@ void addStudent(int rollNo, char *name, float CGPA, int noOfSubjects)
             }
             nextNode->nextStudent = tempNode;
             tempNode->prevStudent = nextNode;
+            sprintf(buffer, "Student added succesfully with roll no. %d!", rollNo);
+            response->status = 1;
+            strcpy(response->message, buffer);
         }
     }
+
     return;
 }
 
-void modifyStudent(int rollNo, float newCGPA)
+void modifyStudent(int rollNo, float newCGPA,struct API_Response *response)
 {
+    char buffer[256];
     if (searchStudent(rollNo))
     {
         struct student *nextNode = (struct student *)malloc(sizeof(struct student));
@@ -131,17 +145,22 @@ void modifyStudent(int rollNo, float newCGPA)
             nextNode = nextNode->nextStudent;
         }
         nextNode->CGPA = newCGPA;
-        return;
+        sprintf(buffer, "Student's CGPA with roll no %d modified successfuly\n", rollNo);
+        response->status = 1;
+        strcpy(response->message, buffer);
     }
     else
     {
-        fprintf(stderr, "Student with %d does not exist to modify CGPA(modify student)\n", rollNo);
-        return;
+        sprintf(buffer, "Student with %d does not exist to modify CGPA(modify student)\n", rollNo);
+        response->status = 0;
+        strcpy(response->message, buffer);
     }
+    return;
 }
 
-void deleteStudent(int rollNo)
+void deleteStudent(int rollNo, struct API_Response *response)
 {
+    char buffer[256];
     if (searchStudent(rollNo))
     {
         struct student *tempNode = (struct student *)malloc(sizeof(struct student));
@@ -172,16 +191,22 @@ void deleteStudent(int rollNo)
             tempNode->prevStudent = prevNode;
             free(deleteStudent);
         }
+        sprintf(buffer, "Student with roll no %d deleted successfully\n", rollNo);
+        response->status = 1;
+        strcpy(response->message, buffer);
     }
     else
     {
-        fprintf(stderr, "Student with %d does not exist to Delete(delete student)\n", rollNo);
+        sprintf(buffer, "Student with %d does not exist to Delete(delete student)\n", rollNo);
+        response->status = 0;
+        strcpy(response->message, buffer);
         return;
     }
 }
 
-void modifyCourse(int rollNo, int courseCode, int marks)
+void modifyCourse(int rollNo, int courseCode, int marks,struct API_Response *response)
 {
+    char buffer[256];
     int searchCase = searchStudentCourse(rollNo, courseCode);
     if (searchCase == -3)
     {
@@ -201,26 +226,35 @@ void modifyCourse(int rollNo, int courseCode, int marks)
         if (tempCourseNode->courseCode == courseCode)
         {
             tempCourseNode->marks = marks;
-            return;
+            sprintf(buffer, "Student's course with roll no %d modified successfully\n", rollNo);
+            response->status = 1;
+            strcpy(response->message, buffer);
         }
     }
     else if (searchCase == -2)
     {
-        fprintf(stderr, "Student with rollno. %d exists but course with code %d does not exists(modify course)\n", rollNo, courseCode);
+        sprintf(buffer, "Student with rollno. %d exists but course with code %d does not exists(modify course)\n", rollNo, courseCode);
+        response->status = 0;
+        strcpy(response->message, buffer);
         return;
     }
     else if (searchCase == -1)
     {
-        fprintf(stderr, "Student with rollno. %d does not exist(modify course)\n", rollNo);
+        sprintf(buffer, "Student with rollno. %d does not exist(modify course)\n", rollNo);
+        response->status = 0;
+        strcpy(response->message, buffer);
     }
 }
 
-void addCourse(int rollNo, int courseCode, int marks)
+void addCourse(int rollNo, int courseCode, int marks, struct API_Response *response)
 {
+    char buffer[256];
     int searchCase = searchStudentCourse(rollNo, courseCode);
     if (searchCase == -3)
     {
-        fprintf(stderr, "Student with rollNo %d and course code %d already exists.(addCourse)\n", rollNo, courseCode);
+        sprintf(buffer, "Student with rollNo %d and course code %d already exists.(addCourse)\n", rollNo, courseCode);
+        response->status = 0;
+        strcpy(response->message, buffer);
         return;
     }
     else if (searchCase == -2)
@@ -254,11 +288,16 @@ void addCourse(int rollNo, int courseCode, int marks)
             tempCourseNode->nextCourse = additionNode;
             additionNode->prevCourse = tempCourseNode;
         }
+        sprintf(buffer, "Student with rollNo %d and course code %d added successfully\n", rollNo, courseCode);
+        response->status = 1;
+        strcpy(response->message, buffer);        
         return;
     }
     else if (searchCase == -1)
     {
-        fprintf(stderr, "Student with rollNo %d does not exists!(addCourse)\n", rollNo);
+        sprintf(buffer, "Student with rollNo %d does not exists!(addCourse)\n", rollNo);
+        response->status = 0;
+        strcpy(response->message, buffer);        
     }
     else
     {
@@ -266,8 +305,9 @@ void addCourse(int rollNo, int courseCode, int marks)
     }
 }
 
-void deleteCourse(int rollNo, int courseCode)
+void deleteCourse(int rollNo, int courseCode, struct API_Response *response)
 {
+    char buffer[256];
     int searchCase = searchStudentCourse(rollNo, courseCode);
     if (searchCase == -3)
     {
@@ -312,14 +352,21 @@ void deleteCourse(int rollNo, int courseCode)
             tempCourseNode->prevCourse = prevCourseNode;
             free(deleteNode);
         }
+        sprintf(buffer, "Student's course with code %d and with rollNo %d deleted successfully\n", courseCode, rollNo);
+        response->status = 1;
+        strcpy(response->message, buffer); 
     }
     else if (searchCase == -2)
     {
-        fprintf(stderr, "student id %d exists but course code %d does not exist(delete course)\n", rollNo, courseCode);
+        sprintf(buffer, "student id %d exists but course code %d does not exist(delete course)\n", rollNo, courseCode);
+        response->status = 0;
+        strcpy(response->message, buffer);
     }
     else if (searchCase == -1)
     {
-        fprintf(stderr, "student id %d does not exist(delete course)\n", rollNo);
+        sprintf(buffer, "student id %d does not exist(delete course)\n", rollNo);
+        response->status = 0;
+        strcpy(response->message, buffer);        
     }
     else
     {
