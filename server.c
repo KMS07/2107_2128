@@ -17,25 +17,35 @@
 
 int main()
 {
-	int					i, maxi, maxfd, listenfd, connfd, sockfd;
-	int					nready, client[FD_SETSIZE];
-	ssize_t				n;
-	fd_set				rset, allset;
-	// char				buf[MAXLINE];
-	socklen_t			clilen;
+	int	i, maxi, maxfd, listenfd, connfd, sockfd;
+	int	nready, client[FD_SETSIZE];
+	ssize_t	n;
+	fd_set rset, allset;
+	socklen_t clilen;
 	struct sockaddr_in	cliaddr, servaddr;
 
 	listenfd = socket(AF_INET, SOCK_STREAM, 0);
+	if (listenfd < 0) {
+        perror("socket error");
+        exit(EXIT_FAILURE);
+    }
 
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sin_family      = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port        = htons(SERV_PORT);
+    
+	if (bind(listenfd, (const struct sockaddr *) &servaddr, sizeof(servaddr)) < 0) {
+        perror("bind error");
+        close(listenfd);
+        exit(EXIT_FAILURE);
+    }
 
-    printf("Server ip: %s\n",inet_ntoa(servaddr.sin_addr));
-	bind(listenfd, (const struct sockaddr *) &servaddr, sizeof(servaddr));
-
-	listen(listenfd, LISTENQ);
+	if (listen(listenfd, LISTENQ) < 0) {
+        perror("listen error");
+        close(listenfd);
+        exit(EXIT_FAILURE);
+    }
 
 	maxfd = listenfd;			/* initialize */
 	maxi = -1;					/* index into client[] array */
@@ -55,17 +65,23 @@ int main()
 		if (FD_ISSET(listenfd, &rset)) {	/* new client connection */
 			clilen = sizeof(cliaddr);
 			connfd = accept(listenfd, (struct sockaddr *) &cliaddr, &clilen);
+			printf("Server ip: %s\n",inet_ntoa(servaddr.sin_addr));
+
             if (connfd < 0) {
                 perror("accept error");
                 continue;
             }
+			
 			for (i = 0; i < FD_SETSIZE; i++)
 				if (client[i] < 0) {
 					client[i] = connfd;	/* save descriptor */
 					break;
 				}
-			if (i == FD_SETSIZE)
-				perror("too many clients");
+			if (i == FD_SETSIZE) {
+                fprintf(stderr, "Too many clients\n");
+                close(connfd); // close the new connection 
+                continue;
+            }
 
 			FD_SET(connfd, &allset);	/* add new descriptor to set */
 			if (connfd > maxfd)
@@ -83,12 +99,34 @@ int main()
 			if (FD_ISSET(sockfd, &rset)) {
                 struct API_Request message;
                 struct API_Response response;
-				if ( (n = read(sockfd,&message ,sizeof(message))) == 0) {
-						/*4connection closed by client */
-					close(sockfd);
-					FD_CLR(sockfd, &allset);
+				n = recv(sockfd, &message, sizeof(message), MSG_WAITALL);
+				if ( n == 0) {
+					/*connection closed by client */
+					printf("Client disconnected\n");
+					close(sockfd); // close conenction
+					FD_CLR(sockfd, &allset); // Remove the client from the set
 					client[i] = -1;
-				} else{
+				} else if(n < 0){
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        // non-blocking mode and no data available
+                        continue;
+                    } else if (errno == EINTR) {
+                        // retry when interrupted by signal
+                        continue;
+                    } else if (errno == ECONNRESET) {
+                        printf("Connection reset by client\n");
+                        close(sockfd);
+                        FD_CLR(sockfd, &allset); // Remove the client from the set
+                        client[i] = -1;
+                        continue;
+                    } else {
+                        perror("read error");
+                        close(sockfd);
+                        FD_CLR(sockfd, &allset); // Remove the client from the set
+                        client[i] = -1;
+                        continue;
+                    }
+				}else{
                     // Process the received message
                     switch (message.api_type) {
                         case 0:
@@ -125,7 +163,12 @@ int main()
                     
                     writer();
                     // Send the response back to the client
-                    send(sockfd, &response, sizeof(response), 0);
+                    if (send(sockfd, &response, sizeof(response), 0) < 0) {
+                        perror("send error");
+                        close(sockfd);
+                        FD_CLR(sockfd, &allset);
+                        client[i] = -1;
+                    }
                 }
 
 				if (--nready <= 0)

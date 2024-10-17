@@ -50,10 +50,8 @@ void read_data(char *input_file, char *IPADDR, int PORT)
     int socket_fd;
 
     if((socket_fd = openClientSocket(IPADDR,PORT)) == -1){
-        printf("Server didnt open the fifo");
         return;
-    } //openin the fifo here once to write till the end of program.
-
+    }
     input_data = fopen(input_file, "r");
     if (input_data == NULL)
     {
@@ -250,11 +248,5 @@ void read_data(char *input_file, char *IPADDR, int PORT)
             }
         }
         printf("File reading done\n");
-    // }
-    // else
-    // {
-    //     fprintf(stderr, "File incorrect syntax\n");
-    // }
-    // close(writefd);// closing client side write file descriptor
     fclose(input_data);
 }

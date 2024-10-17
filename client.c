@@ -119,15 +119,14 @@ void receiveFromSocket()
     fd_set read_fds;
     struct timeval timeout;
 
-    // Set the timeout to 5 seconds
     timeout.tv_sec = 5;
     timeout.tv_usec = 0;
 
-    // Clear the set and add socket_fd to the set
+    // Clear set and add socket_fd to the set
     FD_ZERO(&read_fds);
     FD_SET(socket_fd, &read_fds);
 
-    // Use select to wait for data to be available
+    //to wait for data to be available
     int select_result = select(socket_fd + 1, &read_fds, NULL, NULL, &timeout);
     if (select_result < 0)
     {

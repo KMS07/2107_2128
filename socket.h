@@ -66,10 +66,7 @@ struct API_Response{
     char message[256];
 };
 
-extern int writefd,readfd;
-
 #define SERV_PORT 9998
-#define MAXLINE 1000
 #define LISTENQ 4
 
 #endif
